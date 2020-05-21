@@ -1,0 +1,455 @@
+---
+title: "Introduction to the Tidyverse"
+author: "Camila Bezerra"
+date: "01/08/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo = F, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(utils)
+library(readr)
+```
+
+# I- Importing data in R
+
+## Introduction & read.csv
+
+1. Flat Files
+*csv: Comma Separated Values
+
+```{r, eval=FALSE}
+
+#se o arquivo estiver no seu working directory
+read.csv("states.csv")
+
+#What if file in datasets folder of home directory?
+path <- file.path("~", "datasets", "states.csv")
+
+path
+
+dir() #para ver as pastas presentes no working directory
+```
+
+
+```{r, eval=FALSE}
+# Import swimming_pools.csv: pools
+pools <- read.csv("swimming_pools.csv")
+
+# Print the structure of pools
+str(pools)
+```
+
+stringsAsFactors: tells R whether it should convert strings in the flat file to factors.
+stringsAsFactors = T, means that you import strings as factors
+stringsAsFactors = F, the data frame columnns corresponding to strings in your text fiel will be character.
+
+```{r, eval =FALSE}
+# Import swimming_pools.csv correctly: pools
+pools <- read.csv("swimming_pools.csv", stringsAsFactors = F)
+#stringAsFactors = F. POrque nao queremos que as variaveis do data.frame sejam convertidas em fatores.
+
+# Check the structure of pools
+str(pools)
+```
+
+2. read.delim & read.table
+
+*.txt : Tab-delimed file
+
+read.table()
+*read any tabular file as a data frame
+
+```{r, eval=FALSE}
+
+read.table("states.txt",
+           header = T, #first row lists variable names(default False)
+           sep = "/", #field separator is a forward slash
+           stringsAsFactors = F)
+```
+
+```{r, eval = FALSE}
+# Import hotdogs.txt: hotdogs
+hotdogs <- read.table("hotdogs.txt",
+header = F)
+
+# Summarize hotdogs
+summary(hotdogs)
+```
+
+```{r, eval = F}
+# Path to the hotdogs.txt file: path
+path <- file.path("data", "hotdogs.txt") #salvar path em um objeto
+
+# Import the hotdogs.txt file: hotdogs
+hotdogs <- read.table(path, #objeto salvo
+                      sep = "\t", #separar por tab
+                      col.names = c("type", "calories", "sodium")) #definir os nomes das colunas, uma vez que no arquivo a primeira linha nao contem os nomes.
+#header = F, por default
+
+# Call head() on hotdogs
+head(hotdogs)
+```
+
+```{r, eval = F}
+# Finish the read.delim() call
+hotdogs <- read.delim("hotdogs.txt", header = F, col.names = c("type", "calories", "sodium"))
+
+# Select the hot dog with the least calories: lily
+lily <- hotdogs[which.min(hotdogs$calories), ]
+
+# Select the observation with the most sodium: tom
+tom <- hotdogs[which.max(hotdogs$sodium), ]
+
+# Print lily and tom
+lily
+tom
+```
+
+
+colClasses
+*specify the columnn types or columnn classes of the resulting data frame.
+
+```{r, eval = F}
+read.delim("my_file.txt",
+           colClasses = c("character",
+                          "numeric",
+                          "logical"))
+```
+
+*If a columnn is set to "NULL" in the colClasses vector, this columnn will be skipped and will not be loaded into the data frame.
+
+## Wrappers
+
+*read.table(): the main function
+*read.csv() = wrapper for CSV
+*read.delim() = wrapper for tab-delimited files
+
+## read.csv
+
+* Defaults:
+** header = T
+** sep = ","
+
+##read.csv2
+** sep = ";"
+
+##read.delim
+
+* Defaults
+** header = T
+** sep = "\t"
+
+##read.delim2 
+
+* sep = "\t"
+
+# II - readr & data.table
+
+## readr package
+
+```{r, eval = F}
+read_csv("states.csv")
+
+#when it prints the results, it shows the columns classes
+
+
+read_tsv("states.txt")
+```
+
+
+## readr: read_delim
+
+```{r, eval = F}
+read_delim("states2.txt", delim = "/")
+```
+
+* col_types
+** to control the columns classes
+
+
+```{r, eval = F}
+read_delim("states2.txt", delim = "/t", col_types = "ccddd")
+#c = character
+#d = double
+#i = integer
+#l = logical
+#- = skip
+```
+
+* skip and n_max
+** to skip rows and read a limited number of rows
+** skip: specifies the number of lines you're ignoring in the flat file before actually starting to import data.
+** n_max: specifies the number of lines you're actually importing.
+
+
+```{r, eval = F}
+read_delim("states2.txt", delim = "/t",
+           col_names = c("State", "city", "pop", "area"),
+           skip = 2, n_max = 3) #pular 2 linhas, ler as proximas 3.
+```
+
+## col_types with collectors
+
+* Collector functions can be passes in a list() to the col_types argument of read_ functions to tell them how to interpret values in a column.
+
+** col_integer(): the column should be interpreted as an integer
+** col_factor(levels, orderes = F):
+the column should be interpreted as a fatcor with levels.
+
+```{r, eval = F}
+
+# readr is already loaded
+
+# Import without col_types
+hotdogs <- read_tsv("hotdogs.txt", col_names = c("type", "calories", "sodium"))
+
+# Display the summary of hotdogs
+summary(hotdogs)
+
+# The collectors you will need to import the data
+fac <- col_factor(levels = c("Beef", "Meat", "Poultry"))
+int <- col_integer()
+
+# Edit the col_types argument to import the data correctly: hotdogs_factor
+hotdogs_factor <- read_tsv("hotdogs.txt",col_names = c("type", "calories", "sodium"), col_types = list(fac, int, int))
+
+# Display the summary of hotdogs_factor
+summary(hotdogs_factor)
+```
+
+
+## data.table:fread
+
+* data table package
+* fread() function:
+** similar to read.table() functions
+** infer colnames, column types and separators
+
+```{r, eval = F}
+# fread is already loaded
+
+# Import columns 6 and 8 of potatoes.csv: potatoes
+potatoes <- fread("potatoes.csv", select = c("texture", "moistness"))
+
+# Plot texture (x) and moistness (y) of potatoes
+plot(potatoes$texture,potatoes$moistness)
+```
+
+ # 3. readxl(1)
+ 
+ * excel_sheets(): list different sheets
+ 
+```{r,eval=F}
+dir() 
+# [1] "cities.xlsx" "the_rest_is_secret.txt"
+
+excel_sheets("cities.xlsx")
+# [1] "year_1990" "year_2000"
+```
+ 
+ * read_excel(): actually import data into R
+ 
+```{r,eval=F}
+read_excel("cities.xlsx")
+#by defualt the first sheet is imported
+
+#para especificar a pasta
+read_excel("cities.xlsx", sheet = 2)
+
+#ou
+
+read_excel("cities.xlsx", sheet = "year_2000")
+
+```
+ 
+```{r, eval = F}
+# The readxl package is already loaded
+
+# Read the sheets, one by one
+pop_1 <- read_excel("urbanpop.xlsx", sheet = 1)
+pop_2 <- read_excel("urbanpop.xlsx", sheet = 2)
+pop_3 <- read_excel("urbanpop.xlsx", sheet = 3)
+
+# Put pop_1, pop_2 and pop_3 in a list: pop_list
+pop_list <- list(pop_1, pop_2, pop_3)
+
+# Display the structure of pop_list
+str(pop_list)
+
+```
+
+Aplicando a funcao lapply para ler varias sheets de uma vez
+
+```{r, eval = F}
+# The readxl package is already loaded
+
+# Read all Excel sheets with lapply(): pop_list
+#aplicar a funcao lapply
+#especificar excel_sheets para escolher as sheets
+#ler as sheets
+pop_list <- lapply(excel_sheets("urbanpop.xlsx"),
+read_excel,
+path="urbanpop.xlsx")
+
+# Display the structure of pop_list
+str(pop_list)
+```
+
+
+## readxl(2)
+
+*col_names
+
+```{r, eval = F}
+# The readxl package is already loaded
+
+# Import the first Excel sheet of urbanpop_nonames.xlsx (R gives names): pop_a
+pop_a <- read_excel("urbanpop_nonames.xlsx", col_names= F)
+
+# Import the first Excel sheet of urbanpop_nonames.xlsx (specify col_names): pop_b
+cols <- c("country", paste0("year_", 1960:1966))
+
+pop_b <- read_excel("urbanpop_nonames.xlsx",
+col_names = cols)
+
+# Print the summary of pop_a
+summary(pop_a)
+
+# Print the summary of pop_b
+summary(pop_b)
+```
+
+*skip argument
+
+```{r, eval = F}
+# The readxl package is already loaded
+
+# Import the second sheet of urbanpop.xlsx, skipping the first 21 rows: urbanpop_sel
+urbanpop_sel <- read_excel("urbanpop.xlsx", sheet=2, col_names = F, skip = 21)
+
+# Print out the first observation from urbanpop_sel
+urbanpop_sel[1, ]
+
+```
+
+## gdata package
+
+*read.xls()
+
+```{r, eval = F}
+# Load the gdata package
+library(gdata)
+
+# Import the second sheet of urbanpop.xls: urban_pop
+urban_pop <- read.xls("urbanpop.xls", sheet = "1967-1974")
+
+# Print the first 11 observations using head()
+head(urban_pop, n = 11)
+
+# The gdata package is alreaded loaded
+
+# Column names for urban_pop
+columns <- c("country", paste0("year_", 1967:1974))
+
+# Finish the read.xls call
+urban_pop <- read.xls("urbanpop.xls", sheet = 2,
+                      skip = 50, header = F, stringsAsFactors = F,
+                      col.names = columns)
+
+# Print first 10 observation of urban_pop
+head(urban_pop, n = 10)
+
+# Add code to import data from all three sheets in urbanpop.xls
+path <- "urbanpop.xls"
+urban_sheet1 <- read.xls(path, sheet = 1, stringsAsFactors = FALSE)
+urban_sheet2 <- read.xls(path, sheet = 2, stringsAsFactors = FALSE)
+urban_sheet3 <- read.xls(path, sheet = 3, stringsAsFactors = F)
+
+
+# Extend the cbind() call to include urban_sheet3: urban
+urban <- cbind(urban_sheet1, urban_sheet2[-1], urban_sheet3[-1])
+
+# Remove all rows with NAs from urban: urban_clean
+urban_clean <- na.omit(urban)
+
+
+# Print out a summary of urban_clean
+summary(urban_clean)
+```
+
+## Reproducible Excel work with XLConnect
+
+#XLConnect
+
+```{r, eval=F}
+library("XLConnect")
+
+book <- loadWorkbook("cities.xlsx")
+
+str(book)
+
+getSheets(book)#para pegar as sheets
+
+#para importar uma sheet
+
+readWorksheet(book, sheet = "year_2000")
+
+
+# XLConnect is already available
+
+# Build connection to urbanpop.xlsx
+my_book <- loadWorkbook("urbanpop.xlsx")
+
+# Import columns 3, 4, and 5 from second sheet in my_book: urbanpop_sel
+urbanpop_sel <- readWorksheet(my_book, sheet = 2, startCol = 3, endCol = 5)
+
+# Import first column from second sheet in my_book: countries
+countries <- readWorksheet(my_book, sheet = 2, startCol = 1, endCol = 1)
+
+# cbind() urbanpop_sel and countries together: selection
+selection <- cbind(countries, urbanpop_sel )
+
+# XLConnect is already available
+
+# Build connection to urbanpop.xlsx
+my_book <- loadWorkbook("urbanpop.xlsx")
+
+# Add a worksheet to my_book, named "data_summary"
+createSheet(my_book, "data_summary")
+
+# Create data frame: summ
+sheets <- getSheets(my_book)[1:3]
+dims <- sapply(sheets, function(x) dim(readWorksheet(my_book, sheet = x)), USE.NAMES = FALSE)
+summ <- data.frame(sheets = sheets,
+                   nrows = dims[1, ],
+                   ncols = dims[2, ])
+
+# Add data in summ to "data_summary" sheet
+writeWorksheet(my_book, summ, "data_summary")
+
+# Save workbook as summary.xlsx
+saveWorkbook(my_book, "summary.xlsx")
+```
+
+*renameSheet
+
+```{r, eval = F}
+# my_book is available
+
+# Rename "data_summary" sheet to "summary"
+renameSheet(my_book, "data_summary", "summary")
+
+# Print out sheets of my_book
+getSheets(my_book)
+
+# Save workbook to "renamed.xlsx"
+saveWorkbook(my_book,"renamed.xlsx")
+```
+

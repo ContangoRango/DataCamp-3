@@ -1,0 +1,428 @@
+---
+title: "Importing Data in R (Part 2)"
+author: "Camila Bezerra"
+date: "02/08/2019"
+output: html_document
+---
+
+```{r setup, eval=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Connect to a database
+
+```{r}
+library(DBI)
+
+# Edit dbConnect() call
+con <- dbConnect(RMySQL::MySQL(), 
+                 dbname = "tweater", 
+                 host = "courses.csrrinzqubik.us-east-1.rds.amazonaws.com", 
+                 port = 3306,
+                 user = "student",
+                 password = "datacamp")
+```
+
+*dbConnect(): creates a connection between your session and a SQL databse
+
+# Import table data
+
+* List and import tables
+```{r, eval = F}
+ #listar as tabelas da conexao
+dbListTables(con)
+#outputs a character vector with the table names
+
+#importar a tabela da conexao
+dbReadTable(con, "employees")
+#especificar a conexao, depois a tabela a ser importada
+
+#results as a dataframe
+
+
+#desconectar com a conexão
+dbDisconnect(con)
+```
+
+*Importar varias tabelas ao mesmo tempo com a funcao sapply
+
+```{r, eval = F}
+# Load the DBI package
+library(DBI)
+
+# Connect to the MySQL database: con
+con <- dbConnect(RMySQL::MySQL(), 
+                 dbname = "tweater", 
+                 host = "courses.csrrinzqubik.us-east-1.rds.amazonaws.com", 
+                 port = 3306,
+                 user = "student",
+                 password = "datacamp")
+
+# Get table names
+table_names <- dbListTables(con)
+
+# Import all tables
+#especificar os vetores, depois a funcao
+tables <- lapply(table_names,dbReadTable, conn = con)
+
+# Print out tables
+tables
+```
+
+# SQL Queries from inside R
+
+* Selective importing
+```{r, eval = F}
+employees <- dbReadTable(con, "employees")
+
+
+#voce importa a tabela inteira e depois subset in R
+subset(employees,
+       subset = started_at > "2012-09-01",
+       select = name)
+
+#ou
+
+#voce importa apenas uma parte da tabela
+#SELECT, FROM, WHERE
+dbGetQuery(con, "SELECT name FROM employees WHERE started_at > \"2012-09-01\"")
+```
+
+```{r, eval = F}
+
+products <- dbReadTable(con, "products")
+subset(products, subset = contract == 1)
+
+#OU
+#*
+dbGetQuery(con, "SELECT  * FROM products WHERE contract = 1")
+```
+
+```{r, eval = F}
+# Connect to the database
+library(DBI)
+con <- dbConnect(RMySQL::MySQL(),
+                 dbname = "tweater",
+                 host = "courses.csrrinzqubik.us-east-1.rds.amazonaws.com",
+                 port = 3306,
+                 user = "student",
+                 password = "datacamp")
+
+# Create data frame specific
+specific <- dbGetQuery(con, "SELECT message  FROM comments WHERE tweat_id = 77 AND user_id > 4")
+
+# Print specific
+specific
+
+# Create data frame short
+
+##Create a data frame, short, that selects the id and name columns from the users table where the number of characters in the name is strictly less than 5.
+short <- dbGetQuery (con, "SELECT id, name FROM users WHERE CHAR_LENGTH(name) < 5")
+```
+
+
+#DBI internals
+
+```{r, eval = F}
+
+dbGetQuery(con, "SELECT * FROM products WHERE contract = 1")
+
+
+#Ou 
+
+#atribuir a uma data frame primeiro com a funcao dbSendquery()
+res <- dbSendQuery(con, "SELECT * FROM products WHERE contract = 1")
+
+#pegar os dados da tabela
+dbFetch(res)
+
+dbClearResult(res)
+
+```
+ 
+ Os dois códigos retornam os mesmos resultados, mas esse último pode ser útil porque conseguimos pegar resultados um por um
+ 
+ * dbFetch() one by one
+```{r, eval = F}
+
+res <- dbSendQuery(con, "SELECT * FROM products WHERE contract = 1")
+
+while(!dbHasCompleted(res)) {
+  chunk <- dbFetch(res, n = 1)
+  print(chunk)
+}
+```
+ 
+*Desconectar
+```{r, eval = F}
+dbDisconnect(con)
+```
+
+# HTTP
+
+* Data on the web
+```{r}
+read.csv("http://s3.amazonaws.com/assets.datacamp.com/course/importing_data_into_r/states.csv")  
+
+```
+
+* Downloading files
+
+```{r}
+#salvar link em um objeto
+
+url <- "http://s3.amazonaws.com/assets.datacamp.com/course/importing_data_into_r/cities.xlsx"
+
+#especificar um path
+dest_path <- file.path("~", "local_cities.xlsx")
+
+#download a pasta
+download.file(url, dest_path)
+
+```
+
+
+```{r}
+# https URL to the wine RData file.
+url_rdata <- "https://s3.amazonaws.com/assets.datacamp.com/production/course_1478/datasets/wine.RData"
+
+# Download the wine file to your working directory
+download.file(url_rdata,"wine_local.RData")
+
+# Load the wine data into your workspace using load()
+load("wine_local.RData")
+##You can't directly use a URL string inside load() to load remote RData files. You should use url() or download the file first using download.file().
+
+# Print out the summary of the wine data
+summary(wine)
+```
+
+```{r, eval = F}
+# Load the httr package
+library(httr)
+
+# Get the url, save response to resp
+url <- "http://www.example.com/"
+resp <- GET(url)
+
+# Print resp
+resp
+
+# Get the raw content of resp: raw_content
+raw_content <- content(resp, "raw")
+
+
+# Print the head of raw_content
+head(raw_content)
+```
+
+
+```{r, eval = F}
+# httr is already loaded
+
+# Get the url
+url <- "http://www.omdbapi.com/?apikey=72bc447a&t=Annie+Hall&y=&plot=short&r=json"
+resp <- GET(url)
+
+# Print resp
+resp
+
+# Print content of resp as text
+content(resp, "text")
+
+
+# Print content of resp
+content(GET(url))
+```
+
+# Importing Data in R (Part 2)
+
+## Other data formats
+
+jsonlite package
+
+```{r, eval = F}
+library(jsonlite)
+library(curl)
+
+fromJSON("http://www.omdbapi.com/?i=tt00953&r=json")
+```
+
+```{r}
+# Load the jsonlite package
+library(jsonlite)
+
+# wine_json is a JSON
+wine_json <- '{"name":"Chateau Migraine", "year":1997, "alcohol_pct":12.4, "color":"red", "awarded":false}'
+
+# Convert wine_json into a list: wine
+wine <- fromJSON(wine_json)
+
+# Print structure of wine
+str(wine)
+
+# jsonlite is preloaded
+
+# Definition of quandl_url
+quandl_url <- "https://www.quandl.com/api/v3/datasets/WIKI/FB/data.json?auth_token=i83asDsiWUUyfoypkgMz"
+
+# Import Quandl data: quandl_data
+quandl_data <- fromJSON(quandl_url)
+
+# Print structure of quandl_data
+str(quandl_data)
+```
+
+## JSON & jsonlite
+
+```{r}
+fromJSON('[4, 7, 4, 6, 4, 5, 10, 6, 6, 8]')
+```
+
+* JSON Array of JSON Objects
+
+
+```{r}
+fromJSON('[{"id": 1, "name":"Frank"},
+{"id": 4, "name": "Julie"},
+{"id": 12, "name": "Zach"}]')
+```
+
+toJSON(): to convert R data to a JSON format
+
+```{r}
+# jsonlite is already loaded
+
+# URL pointing to the .csv file
+url_csv <- "http://s3.amazonaws.com/assets.datacamp.com/production/course_1478/datasets/water.csv"
+
+# Import the .csv file located at url_csv
+water <- read.csv(url_csv, stringsAsFactors = FALSE)
+
+# Convert the data file according to the requirements
+water_json <- toJSON(water)
+
+# Print out water_json
+water_json
+```
+
+
+```{r}
+# jsonlite is already loaded
+
+# Convert mtcars to a pretty JSON: pretty_json
+pretty_json <- toJSON(mtcars, pretty = T)
+
+# Print pretty_json
+pretty_json
+
+# Minify pretty_json: mini_json
+mini_json <- minify(pretty_json)
+
+# Print mini_json
+mini_json
+```
+
+## haven
+
+* Statistical Software Packages
+
+* R packages to import data 
+
+* Importing Data from Statistical Software haven 
+
+haven
+* SAS, STATA and SPSS
+
+* SAS data
+
+```{r, eval = F}
+library(haven)
+ontime <- read_sas("ontime.sas7bdat")
+str(ontime)
+```
+
+## STATA data
+
+* STATA 13 & STATA 14
+* read_stata(), read_dta()
+* as_factor()
+
+```{r, eval = F}
+ontime <- read_stata("ontime.dta")
+ontime <- read_dta("ontime.dta")
+
+as.character(as.factor((ontime$Airline)))
+```
+
+## SPSS data
+
+* read_spss()
+* .por -> read_por()
+* .sav -> read_sav()
+
+```{r, eval = F}
+
+# haven is already loaded
+
+# Import the data from the URL: sugar
+sugar <- read_dta("http://assets.datacamp.com/course/importing_data_into_r/trade.dta")
+
+# Structure of sugar
+str(sugar)
+
+
+# Convert values in Date column to dates
+sugar$Date <- as.Date(as_factor(sugar$Date))
+
+# Structure of sugar again
+str(sugar)
+```
+
+# Importing Data from Statistical Software foreign
+
+```{r, eval = F}
+
+install.packages("foreign")
+library(foreign)
+```
+
+* read.dta()
+
+```{r, eval=F}
+onntime <- read.dta("ontime.dta")
+#convert.factors TRUE by default
+str(ontime)
+
+ontime <- read.dta("ontime.dta", convert.factor = F,
+                   convert.dates = T, #convert.factors: convert STATA dates and times to Date and POSIXct
+                   missing.type = F)
+#missing.type: if FALSE, convert all types of missing values to NA
+#if TRUE, store how values are missing attributes
+
+str(ontime)
+```
+
+* read.spss()
+
+```{r, eval = F}
+
+read.spss(file,
+          use.value.labels = T, #convert labelled SPSS values to R factors
+          to.data.frame = F) # return data frame instead of list
+```
+
+```{r, eval = F}
+
+# Load the foreign package
+library(foreign)
+
+# Import florida.dta and name the resulting data frame florida
+florida <- read.dta("florida.dta")
+
+# Check tail() of florida
+tail(florida)
+## the last 6 observations
+
+```
+

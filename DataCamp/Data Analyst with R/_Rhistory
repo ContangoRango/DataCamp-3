@@ -1,0 +1,6 @@
+# Find the first and last ride for each start_station
+first_last <- batrips[order(start_date),
+.(start_date = start_date[c(1, .N)]),
+by = .(start_station)]
+evals %>%
+group_by(gender)

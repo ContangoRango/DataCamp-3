@@ -1,0 +1,345 @@
+---
+title: "Exploratory Data Analysis - Case Study"
+author: "Camila Bezerra"
+date: "30/08/2019"
+output:
+  html_document:
+    theme: united
+    highlight: monochrome
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(eval = F)
+```
+
+
+
+# 1. Data cleaning and summarizing with dplyr
+
+## Adding a country column
+
+```{r, eval = F}
+# Load the countrycode package
+library(countrycode)
+
+# Convert country code 100
+countrycode(100, "cown", "country.name")
+
+# Add a country column within the mutate: votes_processed
+votes_processed <- votes %>%
+  filter(vote <= 3) %>%
+  mutate(year = session + 1945,
+ country = countrycode(ccode, "cown", "country.name"))
+```
+
+
+## Summarizing the full dataset
+
+summarize(): turns many rows into one
+
+```{r, eval = F}
+# Print votes_processed
+votes_processed
+
+# Find total and fraction of "yes" votes
+votes_processed %>% 
+  summarize(total = n(),
+            percent_yes = mean(vote == 1))
+```
+
+# 2. Data visualization with ggplot2
+
+
+## Plotting a line over time
+
+```{r, eval = F}
+# Define by_year
+by_year <- votes_processed %>%
+  group_by(year) %>%
+  summarize(total = n(),
+            percent_yes = mean(vote == 1))
+
+# Load the ggplot2 package
+library(ggplot2)
+
+# Create line plot
+ggplot(by_year, aes(x = year, y = percent_yes)) +
+  geom_line()
+```
+
+
+## Other ggplot2 layers
+
+
+```{r, eval = F}
+# Change to scatter plot and add smoothing curve
+ggplot(by_year, aes(year, percent_yes)) +
+  geom_point() +
+  geom_smooth()
+```
+
+
+## Plotting multiple countries
+
+```{r, eval = F}
+# Vector of four countries to examine
+countries <- c("United States", "United Kingdom",
+               "France", "India")
+
+# Filter by_year_country: filtered_4_countries
+filtered_4_countries <- by_year_country %>%
+filter(country %in% countries)
+
+# Line plot of % yes in four countries
+ggplot(filtered_4_countries, aes(x = year, y = percent_yes, color = country)) +
+  geom_line()
+```
+
+
+## Faceting with free y-axis
+
+```{r, eval = F}
+# Vector of six countries to examine
+countries <- c("United States", "United Kingdom",
+               "France", "Japan", "Brazil", "India")
+
+# Filtered by_year_country: filtered_6_countries
+filtered_6_countries <- by_year_country %>%
+  filter(country %in% countries)
+
+# Line plot of % yes over time faceted by country
+ggplot(filtered_6_countries, aes(year, percent_yes)) +
+  geom_line() +
+  facet_wrap(~ country, scales = "free_y")
+```
+
+# 3. Tidy modeling with broom
+
+## Linear regression
+
+```{r, eval = F}
+# Percentage of yes votes from the US by year: US_by_year
+US_by_year <- by_year_country %>%
+  filter(country == "United States")
+
+# Print the US_by_year data
+US_by_year
+
+# Perform a linear regression of percent_yes by year: US_fit
+US_fit <- lm(formula = percent_yes ~ year, data = US_by_year)
+
+# Perform summary() on the US_fit object
+summary(US_fit)
+```
+
+# 3. Tidy modeling with broom
+
+## Tidying models with broom
+ 
+### broom turns a model into a data frame
+
+```{r, eval = F}
+library(broom)
+tidy(model)
+```
+
+## Combining models for mutiple countries
+
+```{r, eval = F}
+# Linear regression of percent_yes by year for US
+US_by_year <- by_year_country %>%
+  filter(country == "United States")
+US_fit <- lm(percent_yes ~ year, US_by_year)
+
+# Fit model for the United Kingdom
+UK_by_year <- by_year_country %>%
+filter(country == "United Kingdom")
+UK_fit <- lm(percent_yes ~ year, UK_by_year)
+
+# Create US_tidied and UK_tidied
+US_tidied <- tidy(US_fit)
+UK_tidied <- tidy(UK_fit)
+
+
+# Combine the two tidied models
+bind_rows(US_tidied, UK_tidied)
+```
+
+
+## Nesting for multiple models
+
+* nest() turns it into one row per country
+
+```{r, eval = F}
+library(tidyr)
+by_year_country %>% 
+  nest(-country) # means "nest all except country"
+
+```
+
+* unnest() does the opposite
+
+```{r, eval = F}
+by_year_country %>% 
+  nest(-country) %>% # means "nest all except country"
+  unnest(data)
+```
+
+## List comlumns
+
+This "nested" data has an interesting structure. The second column, data, is a list, a type of R object that hasn't yet come up in this course that allows complicated objects to be stored within each row. This is because each item of the data column is itself a data frame.
+
+```{r, eval = F}
+# All countries are nested besides country
+nested <- by_year_country %>%
+  nest(-country)
+
+# Print the nested data for Brazil
+nested$data[[7]]
+```
+
+
+## Fitting multiple countries
+
+* map() applies an operation to each item in a list
+
+```{r}
+v <- list(1, 2, 3)
+map(v, ~. * 10)
+```
+
+
+```{r, eval = F}
+library(purrr)
+by_year_country %>% 
+  nest(-country) %>% 
+#map() fits a model to each dataset
+  mutate(models = map(data, ~lm(percent_yes ~year, data = .))) %>% #tidy turns each model into a data frame
+  mutate(tidied ~ map(models, tidy)) %>% 
+#unnest(combines the tidied models)
+unnest(tidied)
+```
+
+
+## Performing linear regression on each nested dataset
+
+```{r, eval = F}
+# Perform a linear regression on each item in the data column
+by_year_country %>% 
+  group_by(country) %>% # agrupar por país
+  nest() %>%  
+  mutate(model = map(data, ~lm(percent_yes ~year, data = . ))) #aplicar o modelo para cada país
+```
+
+## Tidy each linear regression model
+
+```{r, eval = F}
+# Load the broom package
+library(broom)
+
+# Add another mutate that applies tidy() to each model
+by_year_country %>%
+  nest(-country) %>%
+  mutate(
+  model = map(data, ~ lm(percent_yes ~ year, data = .)),
+  tidied = map(model, tidy)
+  )
+```
+
+
+## Working with many tidy models
+
+```{r, eval = F}
+country_coefficients %>% 
+  filter(term == "year") %>% # filter for the year term(slope)
+  filter(p.adjust(p.value) < .05) #filtered by adjusted p-value
+```
+
+
+
+## Filtering for significant countries
+
+Use the p.adjust() function to adjust the p.value column, saving the result into a new p.adjusted column. Then, filter for cases where p.adjusted is less than .05.
+
+```{r, eval = F}
+# Filter for only the slope terms
+slope_terms <- cuntry_coefficients %>% 
+  filter(term == "year")
+
+# Add p.adjusted column, then filter 
+slope_terms %>% 
+  mutate(p.adjusted = p.adjust(p.value)) %>% 
+  filter(p.adjusted < .05)
+```
+
+# 4. Joining and tidying
+
+## Tidy data
+
+* Use gather() to bring columns into two variables
+
+```{r, eval = F}
+library(tidyr)
+votes_joined %>% 
+  gather(topic, has_topic, me:ec)
+
+# "topic" is now a variable
+```
+
+
+## Using gather to tidy dataset
+
+In order to represent the joined vote-topic data in a tidy form so we can analyze and graph by topic, we need to transform the data so that each row has one combination of country-vote-topic. This will change the data from having six columns (me, nu, di, hr, co, ec) to having two columns (topic and has_topic).
+
+```{r, eval = F}
+# Load the tidyr package
+library(tidyr)
+
+# Gather the six me/nu/di/hr/co/ec columns
+votes_joined %>% gather(topic, has_topic, me:ec)
+
+
+# Perform gather again, then filter
+votes_gathered <- votes_joined %>% gather(topic, has_topic, me:ec)%>%
+filter(has_topic == 1)
+
+```
+
+## Summarize by country, year, and topic
+
+```{r, eval = F}
+# Print votes_tidied
+votes_tidied
+
+# Summarize the percentage "yes" per country-year-topic
+by_country_year_topic <- votes_tidied %>%
+group_by(country, year, topic) %>%
+summarize(total = n(),
+percent_yes = mean(vote == 1)) %>%
+ungroup()
+
+# Print by_country_year_topic
+by_country_year_topic
+```
+
+
+## Tidy modeling by topic and country
+
+```{r, eval = F}
+
+library(purr)
+library(broom)
+
+country_topic_coefficients <- by_year_country_topic %>% 
+  nest(~country, -topic) %>% 
+  mutate(model = map(data, ~lm(percent_yes ~ year, data = .)),
+         tidied = map(model, tidy)) %>% 
+  unnest(tidied)
+
+```
+
+##
+
+```{r, eval = F}
+
+```

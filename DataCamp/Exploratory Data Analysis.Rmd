@@ -1,0 +1,175 @@
+---
+title: "Exploratory Data Analysis"
+author: "Camila Bezerra"
+date: "29/08/2019"
+output:
+  html_document:
+    theme: united
+    highlight: monochrome
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(eval = F)
+```
+
+
+
+# 1. Exploring Categorical Data
+
+## Dropping levels
+
+```{r, eval = F}
+# Load dplyr
+library(dplyr)
+
+# Print tab  to find out which level of align has the fewest total entries.
+tab
+
+# Remove align level
+comics_filtered <- comics %>%
+  # Use filter() to filter out all rows of comics with that level
+  filter(align != "Reformed Criminals") %>%
+  #then drop the unused level with droplevels()
+  droplevels()
+
+# See the result
+comics_filtered
+
+```
+
+## Side-by-side barcharts
+
+You´ll construct two side-by-side barchats of the comics data. 
+Passing the argument position = "dodge" to geom_bar() says that yu want a side-by-side (i.e. not stacked) barchart.
+
+```{r, eval = F}
+# Load ggplot2
+library(ggplot2)
+
+# Create side-by-side barchart of gender by alignment
+ggplot(comics, aes(x = align, fill = gender)) + 
+  geom_bar(position = "dodge")
+
+# Create side-by-side barchart of alignment by gender
+ggplot(comics, aes(x = gender, fill = align)) + 
+  geom_bar(position = "dodge") +
+  #Rotate the axis labels 90 degrees to help readability.
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+
+## Conditional proportions
+
+```{r, eval = F}
+tab <- table(comics$align, comics$gender)
+options(scipen = 999, digits = 3) # Print fewer digits
+prop.table(tab)     # Joint proportions
+prop.table(tab, 2)  # Conditional on columns
+```
+
+
+
+## Count vs. proportions(2)
+
+Bar charts can tell dramatically different stories depending on whether they represent counts or proportions and, if proportions, what the proportions are conditioned on. To demonstrate this difference, you'll construct two barcharts in this exercise: one of counts and one of proportions.
+
+```{r, eval = F}
+# Plot of gender by align
+ggplot(comics, aes(x = align, fill = gender)) +
+  geom_bar()
+  
+# Plot proportion of gender, conditional on align
+ggplot(comics, aes(x = align, fill = gender)) + 
+geom_bar(position = "fill") +
+  ylab("proportion")
+```
+
+
+## Marginal barchart
+
+```{r, eval = F}
+# Change the order of the levels in align
+comics$align <- factor(comics$align, 
+                       levels = c("Bad", "Neutral", "Good"))
+
+# Create plot of align
+ggplot(comics, aes(x = align)) + 
+  geom_bar()
+```
+
+
+## Conditional barchart
+
+If you want to break down the distribution of alignment based on gender, you're looking for conditional distributions.
+
+```{r, eval = F}
+# Plot of alignment broken down by gender
+ggplot(comics, aes(x = align)) + 
+  geom_bar() +
+  facet_wrap(~ gender)
+```
+
+
+# 2. Exploring Numerical Data
+
+## Boxplots and density plots
+
+```{r, eval = F}
+# Filter cars with 4, 6, 8 cylinders
+common_cyl <- filter(cars,ncyl %in% c(4, 6, 8))
+
+# Create box plots of city mpg by ncyl
+ggplot(common_cyl, aes(x = as.factor(ncyl), y = city_mpg)) +
+  geom_boxplot()
+
+# Create overlaid density plots for same data
+ggplot(common_cyl, aes(x = city_mpg, fill = as.factor(ncyl))) +
+  geom_density(alpha = .3)
+```
+
+
+## Choose measures for center and spread
+
+Like mean and standard deviation, median and IQR measure the central tendency and spread, respectively, but are robust to outliers and non-normal data.
+
+## Transformations
+
+```{r, eval = F}
+# Create density plot of old variable
+gap2007 %>%
+  ggplot(aes(x = pop)) +
+  geom_density()
+
+# Transform the skewed pop variable
+gap2007 <- gap2007 %>%
+  mutate(log_pop = log(pop))
+
+# Create density plot of new variable
+gap2007 %>%
+  ggplot(aes(x = log_pop)) +
+  geom_density()
+```
+
+## Outliers
+
+### Characteristics of a distribution
+
+* Center
+* Variability
+* Shape 
+* Outliers
+
+### Identify outliers
+
+```{r, eval = F}
+# Filter for Asia, add column indicating outliers
+gap_asia <- gap2007 %>%
+  filter(continent == "Asia") %>%
+  mutate(is_outlier = lifeExp < 50)
+
+# Remove outliers, create box plot of lifeExp
+gap_asia %>%
+  filter(!is_outlier) %>%
+  ggplot(aes(x = 1, y = lifeExp)) +
+  geom_boxplot()
+```

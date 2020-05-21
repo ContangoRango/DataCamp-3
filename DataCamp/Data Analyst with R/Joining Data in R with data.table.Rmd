@@ -1,0 +1,733 @@
+---
+title: "Joining Data in R with data.table"
+author: "Camila Bezerra"
+date: "10/09/2019"
+output:
+  html_document:
+    theme: united
+    highlight: monochrome
+---
+
+```{r, warning=F}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+```
+
+# 1. Joining Multiple data.tables
+
+## Joining data.tables
+
+* Table keys: columns that link information across two tables
+      * columns that link observations across data.tables are knows as "join keys"
+* The tables() function will show you all data.tables loaded in your R sessio
+
+## Exploring data.tables
+
+```{r}
+# What data.tables are in my R session?
+tables()
+
+# View the first six rows 
+head(netflix, n = 6)
+head(imdb, n = 6)
+
+# Print the structure
+str(netflix)
+str(imdb)
+```
+
+## The merge functions
+
+### Inner join
+
+Only keep observations that have information in both data.tables
+
+```{r}
+merge(x = demographics, y = shipping, by.x = "name", by.y = "name")
+```
+
+### The by argument
+
+Use by to avoid repeated typing of the same column name
+
+```{r}
+merge(x = demographics, y = shipping, by = name)
+```
+
+### Full join
+
+Keep all obsrevations that are in the either data.table
+
+```{r}
+merge(x = demographics, y = shipping, by = "name", all = TRUE)
+```
+
+## Left and right joins
+
+### Left joins
+
+Add information from the right data.table to the left data.table
+
+```{r}
+merge(x = demographics, y = shipping, by = "name", all.x = TRUE)
+```
+
+### Right joins 
+
+```{r}
+merge(x = demographics, y = shipping, by = "name", all.y = TRUE)
+```
+
+₢
+
+```{r}
+# Identify the key for joining capital_pop and area
+capital_pop_area_key <- c("state")
+
+# Inner join area to capital pop
+australia_stats <- merge(x = capital_pop, y = area, by = "state")
+
+# Print the final result
+australia_stats
+```
+
+## Mastering simple
+
+```{r}
+# Identify the key for joining capitals and population
+capitals_population_key <- c("city")
+
+# Left join population to capitals
+capital_pop <- merge(x = capitals, y = population, by = capitals_population_key, all.x = TRUE)
+capital_pop
+
+# Identify the key for joining capital_pop and area
+capital_pop_area_key <- c("state")
+
+# Inner join area to capital pop
+australia_stats <- merge(x = capital_pop, y = area, by = "state")
+
+# Print the final result
+australia_stats
+```
+
+# 2. Joins Using data.table Syntax
+
+## Joins using data.table syntax
+
+The default join is a rigth join
+Variables inside list() or .() are looked up in the column names of both data.tables
+Character vectors can also be used
+
+```{r}
+demographics[shipping, on = .(name)]
+```
+
+Not possible with the data.table syntax, use the merge() function:
+
+### Anti-joins
+
+Filter a data.table to rows that have no match in another data.table
+
+```{r}
+demographics[!shipping, on = .(name)]
+```
+
+## Right join with the data.table syntax
+
+Joins using the data.table syntax treat the i argument like a subset operation, so it returns rows in the order they appear in the data.table given to the i argument, while the merge() function sorts rows based on the values in the key column.
+
+```{r}
+# Right join population to capitals using data.table syntax
+capitals[population, on = "city"]
+
+# Right join using merge
+merge(x = capitals, y =population, by = "city", all.y = TRUE)
+```
+
+## Inner join with the data.table syntax
+
+If you are performing many inner joins, you can change the default behaviour of nomatch by setting options(datatable.nomatch = 0) in your R session.
+
+```{r}
+# Inner join with the data.table syntax
+capitals[population, on = .(city), nomatch = 0]
+```
+
+## Setting and viewing data.table keys
+
+### The setkey() function
+
+Key columns are passed as arguments
+
+```{r}
+setkey(DT, key1, key2, key3)
+
+# To set all columns in DT as keys
+setkey(DT)
+```
+
+### Setting keys programmatically
+
+Key columns are provided as a character vector
+
+```{r}
+keys <- c("key1", "key2", "key3")
+setkeyv(dt, keys)
+```
+
+### Getting keys
+
+```{r}
+## haskey() checks whether you have set keys
+haskey(dt1)
+
+## key() returns the key columns you have set
+key(dt1)
+```
+
+### Viewing all data.tables and their keys
+
+```{r}
+tables()
+```
+
+## Setting keys
+
+Using setkey() will also sort the rows of a data.table by the key columns. This makes joins and filter operations on the keys more efficient, and can be much faster for large data.tables.
+
+```{r}
+# Set the keys
+setkey(netflix, title)
+setkey(imdb, title)
+
+# Inner join
+netflix[imdb, nomatch = 0]
+```
+
+## Getting keys
+
+The key() function is a useful way of reducing typing errors that can happen when manually typing long keys or multiple keys over and over again. This can be used together with the haskey() and setkeyv() functions for programmatic key checking and setting.
+
+```{r}
+# Check for keys
+haskey(netflix)
+haskey(imdb)
+
+# Find the key
+the_key <- key(netflix)
+
+# Set the key for the other data.table
+setkeyv(imdb, the_key)
+```
+
+## Exploring the Australian population
+
+```{r}
+# Inner join capitals to population
+population[capitals, on = "city", nomatch = 0]
+
+# Join and sum
+population[capitals, on = .(city), nomatch = 0,
+           j = sum(percentage)]
+```
+
+## Finding multiple matches
+
+```{r}
+# How many continents is each country listed in?
+continents[life_exp, on = .(country), .N, 
+    by = .EACHI]
+
+# What countries are listed in multiple continents?
+continents[life_exp, on = .(country), .N, 
+           by = .EACHI][N >1]
+```
+
+## Exploring world life expectancy
+
+Excellent work! Using by = .EACHI is a useful way of checking your join has the number of matches you expect, and finding rows that may cause problems in downstream analysis. Remember if you want to use by= to group computations in j by another column you will need to chain a second data.table[] expression.
+
+```{r}
+# Calculate average life expectancy per continent:
+avg_life_expectancy <- continents[life_exp, on = .(country), 
+                                  nomatch = 0][, j = mean(years), 
+                                       by = continent]
+avg_life_expectancy
+```
+
+
+# 3. Diagnosing and Fixing Common Join Problems
+
+## Complex keys
+
+### Specifying multiple keys with the data.table syntax
+
+```{r}
+purchases[web_visits, on = .(name, date)]
+purchases[web_visits, on = c("name", "date")]
+
+purchases[web_visits, on = .(name = person, date)]
+purchases[web_visits, on = c("name" = "person", "date")]
+```
+
+## Keys with different names
+
+```{r}
+# Full join
+merge(x = guardians, y = students, by = "name", all = TRUE)
+
+# Left join
+merge(x = students, y = guardians, by = "name", all.x = TRUE)
+
+# Inner join
+students[guardians, on = .(name), nomatch = 0]
+```
+
+
+Explore the data.tables in your console to find the column in each of students and guardians that matches rows between them, then modify the code to use these column names to perform an inner join.
+
+```{r}
+# What are the correct join key columns?
+students[guardians, on = .(guardian = name), nomatch = 0]
+```
+
+## Multi-column keys
+
+```{r}
+# Right join
+subjects[locations, on = .(subject, semester)]
+
+# Structure 
+str(subjects)
+str(locations)
+
+# Does semester have the same class? 
+same_class <- FALSE
+
+# Fix the column class
+locations[, semester := as.integer(semester)]
+
+# Right join
+subjects[locations, on = .(semester, subject)]
+```
+
+## Multi-key, single-key
+
+```{r}
+# Identify and set the keys
+join_key <- c("topic"="subject")
+
+# Right join
+teachers[locations, on = join_key]
+```
+
+## Tricky columns
+
+### Common column names with merge()
+
+* Using the data.table syntax
+
+```{r}
+parents[children, on = .(name = parent)]
+```
+
+* Using the merge() function
+
+```{r}
+merge(x = children, y = parents, by.x = "parents", by.y = "name")
+
+## The suffixes argument can add useful context:
+merge(children, parents, by.x = "parent", by.y = "name", suffixes = c(".child", ".parent"))
+```
+
+### Renaming columns
+
+Rename all columns using setnames()
+
+```{r}
+setnames(parents, c("parent", "parent.gender", "parent.age"))
+setnames(parents, old = c("gender", "age"), new = c("parent.gender", "parent.age"))
+```
+
+Join keys for data.frames may be in the rownames
+
+```{r}
+parents <- as.data.table(parents, keep.rownames = "parent")
+```
+
+## Column name suffixes
+
+```{r}
+# Inner join
+capital_pop <- merge(capitals, population, on= state, nomatch = 0)
+
+# Left join
+merge(x = capital_pop, y = area, by = "state", all.x = TRUE)
+
+# Inner join from step 1
+capital_pop <- merge(capitals, population, by = "city")
+
+# Left join with suffixes
+merge(capital_pop, area, by = "state", all.x = TRUE, suffixes = c(".pop", ".area"))
+```
+
+## Joining a data.frame
+
+```{r}
+# Convert netflix to a data.table
+netflix_dt <- as.data.table(netflix, keep.rownames = "series")
+
+# Right join
+imdb[netflix_dt, on = .(title = series)]
+```
+
+## Duplicate matches
+
+### Allowing multiplicative matches
+
+allow.cartesian = TRUE allows the join to proceed:
+
+```{r}
+# data.table syntax
+site1_ecology[site2_ecology, on = .(genus), allow.cartesian = TRUE]
+
+# merge
+merge(site1_ecology, site2_ecology, by = "genus", allow.cartesian = TRUE)
+```
+
+### Filtering missing values
+
+!is.na() can be used to filter rows with missing values
+
+```{r}
+site1_ecology <- site1_ecology[!is.na(genus)]
+```
+
+### Keeping only the first match
+
+```{r}
+site1_ecology[site2_ecology, on = .(genus), mult = "first"]
+```
+
+
+### Keeping only the first match
+
+```{r}
+site1_ecology[site2_ecology, on = .(genus), mult = "last"]
+```
+
+### The unique() function
+
+```{r}
+unique(site1_ecology, by = "genus")
+```
+
+### changing the search order
+
+```{r}
+duplicated(site1_ecology, by = "genus", fromLast = TRUE)
+unique[site1_ecology, by = "genus", fromLast = TRUE]
+```
+
+
+## Joining with missing values
+
+```{r}
+# Filter missing values
+heart_2 <- heart[!is.na(gene)]
+cardio_2 <- cardio[!is.na(gene)]
+
+# Inner join the filtered data.tables
+merge(x = heart_2, y = cardio_2, by = "gene", nomatch = 0, allow.cartesian = TRUE)
+
+```
+
+## Filtering duplicates
+
+You could also have filtered duplicates using the duplicated() function: heart <- heart[!duplicated(heart, by="gene", fromLast = TRUE)]
+
+```{r}
+# Keep only the last probe for each gene
+heart_3 <- unique(heart_2, by = "gene", fromLast = TRUE)
+cardio_3 <- unique(cardio_2, by = "gene", fromLast = TRUE)
+
+# Inner join
+reproducible <- merge(heart_3, cardio_3, by = "gene", suffixes = c(".heart", ".cardio"))
+reproducible
+```
+
+## Joining and filtering duplicates
+
+```{r}
+# Right join taking the first match
+heart_2[framingham, on = .(gene), mult = "first"]
+
+# Anti-join
+reproducible[!framingham, on = .(gene)]
+```
+
+# 4. Concatenating and Reshaping data.tables
+
+## Concatenating two or more data.tables
+
+* Same columns, different data.tables
+* rbind(): concatenate rows from data.tables stored in different varibales
+* rbindlist(): concatenate rows from a list of data.tables
+* the idcol argument adds a column indicating the data.table of origin
+
+```{r}
+rbind("2015" = sales_2015, "2016" = sales_2016, idcol = "year")
+```
+
+### Adding an identifier column
+
+```{r}
+rbind(sales_2015, sales_2016, idcol = TRUE)
+```
+
+### Handling missing columns
+
+```{r}
+rbind("2015" = sales_2015, "2016" = sales_2016, idcol = "year", fill = TRUE)
+```
+
+
+### The rbindlist() function
+
+Concatenate rows from a list of data.tables
+
+```{r}
+# Read in a list of data.tables
+table_files <- c("sales_2015.csv", "sales_2016.csv")
+list_of_tables <- lapply(table_files, fread)
+
+# The idcol argument takes names from the inout list
+rbindlist(list_of_tables, idcol = "year")
+```
+
+
+### Handling different columns orders
+
+```{r}
+rbind("2015" = sales_2015, "2016" = sales_2016, idcol = "year", use.names = TRUE)
+```
+
+### Handling with different column names
+
+```{r}
+rbind("2015" = sales_2015, "2016" = sales_2016, idcol = "year", use.names = FALSE)
+
+```
+
+## Concatenating data.table variables
+
+Datasets with regular updates may come in separate files. The rbind() function enables you to reliably and efficiently concatenate these into a single data.table once they have been loaded into your R session with fread().
+
+```{r}
+# Concatenate case numbers from weeks 50 and 51
+rbind(ebola_W50, ebola_W51)
+
+# Modify the code
+rbind(ebola_W50, ebola_W51, ebola_W52, fill = TRUE)
+```
+
+
+## Concatenating a list of data.tables
+
+```{r}
+# Concatenate its data.tables
+gdp_all_1 <- rbindlist(gdp)
+
+# Concatenate its data.tables
+gdp_all_2 <- rbindlist(gdp, idcol = "continent")
+
+# Run this code to inspect gdp_all_2
+gdp_all_2 <- rbindlist(gdp, idcol = "continent")
+str(gdp_all_2)
+gdp_all_2[95:105]
+
+# Fix the problem
+gdp_all_3 <- rbindlist(gdp, idcol = "continent", fill = TRUE)
+gdp_all_3
+```
+
+
+## Set operation functions
+
+Given two data.tables with the same columns:
+
+* fintersect(): what rows do these two data.tables share in common?
+      * all = TRUE: keep the number of copies present in both data.tables.
+* funion(): what is the unique set of rows across the two data.tables?
+      * all = TRUE: return all rows
+* fsetdiff(): what rows are unique to this data.table?
+      * all = TRUE: return all extra copies
+      
+## Identifying observations shared by multiple tables
+
+```{r}
+# Obtain countries in both Asia and Europe
+fintersect(gdp$asia, gdp$europe)
+
+# Concatenate all data tables
+gdp_all <- rbindlist(gdp)
+
+# Find all countries that span multiple continents
+duplicated(gdp_all)
+```
+
+## Removing duplicates while combining tables
+
+```{r}
+# Get all countries in either Asia or Europe
+funion(gdp$asia, gdp$europe)
+
+# Concatenate all data tables
+gdp_all <- rbindlist(gdp)
+
+# Print all unique countries
+unique(gdp_all)
+```
+
+## Identifying observations unique to a table
+
+```{r}
+# Which countries are in Africa but not considered part of the middle east?
+fsetdiff(gdp$africa, middle_east, all= TRUE)
+
+# Which countries are in Asia but not considered part of the middle east?
+fsetdiff(gdp$asia, middle_east, all= TRUE)
+
+# Which countries are in Europe but not considered part of the middle east?
+fsetdiff(gdp$europe, middle_east, all= TRUE)
+```
+
+## The melt( ) function
+
+
+```{r}
+## Use measure.vars to specify columns to stack
+melt(sales_wide, measure.vars = c("2015", "2016"))
+
+## Use variable.name and value.name to rename these columns in the result
+melt(sales_wide, measure.vars = c("2015", "2016"),
+     variable.name = "year", value.name = "amount")
+
+## Use id.vars to specify columns to keep aside
+melt(sales_wide, id.vars = "quarter", variable.name = "year", value.name = "amount")
+
+## Use both to keep only a subset of columns
+melt(sales_wide, id.vars = "quarter", measure.vars = "2015", variable.name = "year", value.name = "amount")
+```
+
+## Melting a wide table
+
+```{r}
+# Print gdp_per_capita
+gdp_per_capita
+
+# Reshape gdp_per_capita to the long format
+melt(gdp_per_capita, id.vars = "year")
+
+# Rename the new columns
+melt(gdp_per_capita, id.vars = "year", 
+     variable.name = "country", value.name = "gdp_pc")
+```
+
+## More melts
+
+```{r}
+# Print ebola_wide
+ebola_wide
+
+# Stack Week_50 and Week_51
+melt(ebola_wide, measure.vars = c("Week_50", "Week_51"), variable.name = "period", value.name = "cases")
+
+# Modify the code
+melt(ebola_wide, measure.vars = c("Week_50", "Week_51"), 
+     variable.name = "period", value.name = "cases", 
+     id.vars = "Location")
+```
+
+## Casting data.tables
+
+### The dcast() function
+
+The general form of dcast():
+
+
+```{r}
+dcast(DT, ids ~ group, value.var = "values")
+      |   |     |                   |
+      |   |     |                    --> column to split
+      |   |      ----------------------> group labels to split by
+      |    ----------------------------> rows to keep behind as identifiers
+       --------------------------------> data.table to reshape
+```
+
+### The dcast() function
+
+```{r}
+sales_wide <- dcast(scales_long, quarter~year, value.var = "amount")
+```
+
+### Splitting multiple value columns
+
+```{r}
+dcast(profit_long, quarter~year, value.var = c("revenue", "profit"))
+```
+
+### Dropping columns
+
+Only columns included in the formula or value.var will be in the result:
+
+```{r}
+sales_wide <- dcast(scales_long, quarter~year, value.var = "amount")
+
+# as.matrix() can take one of the columns to use as the matrix rownames:
+mat <- as.matrix(sales_wide, rownames = "season")
+```
+
+## Casting a long table
+
+```{r}
+# Split the population column by year
+dcast(gdp_oceania, formula = country ~ year, value.var = "population")
+
+# Split the gdp column by country
+dcast(gdp_oceania, formula = year ~ country, value.var = "gdp")
+```
+
+
+One way to remember the dcast formula is that the column you give to the left hand side will always be the left most column of row identifiers in the result.
+
+## Casting multiple columns
+
+If you don't want to keep any columns as row identifiers in the result, you can use the special symbol . in the formula.
+
+```{r}
+# Split the gdp and population columns by year
+dcast(gdp_oceania, formula = country ~ year, value.var = c("gdp", "population"))
+
+# Reshape from wide to long format
+wide <- dcast(gdp_oceania, formula = country ~ year, value.var = c("gdp", "population"))
+
+# convert to a matrix
+mat <- as.matrix(wide, rownames = "country")
+
+# Modify your previous code
+dcast(gdp_oceania, formula = country + continent ~ year, value.var = c("gdp", "population"))
+```
+
+
+## Splitting by multiple groups
+
+For advanced use cases take a look at the fill argument which controls how dcast handles group combinations that do not occur, and the fun.aggregate argument which controls how dcast handles cases where there are multiple values for different group combinations.
+
+```{r}
+# Split gdp by industry and year
+gdp_by_industry_oceania
+dcast(gdp_by_industry_oceania, country ~ year + industry, value.var = "gdp")
+```
